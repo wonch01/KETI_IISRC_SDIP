@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSONB
 from pymongo import MongoClient
-from apscheduler.schedulers.background import BackgroundScheduler
 from time import sleep
 import psycopg2
 from faker import Faker
@@ -11,6 +10,7 @@ import random
 import sys
 import os
 import threading
+from celery import Celery
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -18,14 +18,28 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@keties.iptime.org:55401/timescaledb_sensor'
 db = SQLAlchemy(app)
 
-# TimescaleDB 연결 설정
-ts_conn = psycopg2.connect(
-    host="keties.iptime.org",
-    database="timescaledb_sensor",
-    user="keti_root",
-    password="madcoder",
-    port="55401"
-)
+# Flask와 Celery 설정
+def make_celery(app):
+    celery = Celery(
+        app.import_name,
+        broker=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
+        backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+    )
+    celery.conf.update(app.config)
+    return celery
+
+# Celery 인스턴스 생성
+celery = make_celery(app)
+
+# TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
+def get_ts_conn():
+    return psycopg2.connect(
+        host="keties.iptime.org",
+        database="timescaledb_sensor",
+        user="keti_root",
+        password="madcoder",
+        port="55401"
+    )
 
 # MongoDB 연결 설정
 mongo_client = MongoClient("mongodb://keti_root:madcoder@keties.iptime.org:55402/")
@@ -48,25 +62,36 @@ with app.app_context():
 
 @app.route('/add_sensor_log', methods=['POST'])
 def add_sensor_log():
+    # await asyncio.sleep(1)  # 비동기 작업 예시
     data = request.json
     # MongoDB에 먼저 데이터 저장
     try:
         mongo_collection.insert_one(data)
-        return jsonify({"message": "Sensor log added successfully to MongoDB"}), 201
+         # Celery 비동기 작업을 호출
+        transfer_data.delay()  # 백그라운드 작업으로 데이터를 처리
+
+        return jsonify({"message": "Sensor log saved to MongoDB and processing"}), 201
     except Exception as e:
         print(f"MongoDB 저장 오류: {e}")
         return jsonify({"message": "Error storing data in MongoDB"}), 500
     
+# Celery 작업 정의
+@celery.task
+def transfer_data():
+    cursor = mongo_collection.find({}).limit(100)
+    for document in cursor:
+        save_data_to_timescaledb(document)
+        mongo_collection.delete_one({'_id': document['_id']})  # 데이터 삭제
 
-# TimescaleDB 모델
 def save_data_to_timescaledb(sensor_data):
+    conn = get_ts_conn()  # 각 작업마다 새 TimescaleDB 커넥션 생성
     try:
-        with ts_conn.cursor() as cur:
-            insert_query = """
+        with conn.cursor() as cur:
+            query = """
             INSERT INTO sensor_logs (time, sensor_type, sensor_name, sensor_value, user_id, location, json)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            cur.execute(insert_query, (
+            cur.execute(query, (
                 sensor_data['time'],
                 sensor_data['sensor_type'],
                 sensor_data['sensor_name'],
@@ -75,28 +100,15 @@ def save_data_to_timescaledb(sensor_data):
                 sensor_data['location'],
                 sensor_data['json']
             ))
-        ts_conn.commit()
+        conn.commit()
         print("TimescaleDB에 데이터 저장 성공")
     except Exception as e:
-        print(f"TimescaleDB 저장 오류: {e}")
-        ts_conn.rollback()
+        conn.rollback()
+        print(f"TimescaleDB 저장 중 오류 발생: {e}")
+    finally:
+        conn.close()
 
-# MongoDB에서 TimescaleDB로 데이터를 이동하는 함수
-def transfer_data_from_mongo_to_timescaledb():
-    while True:
-        try:
-            print("스레드가 시작되었습니다.")
-            # MongoDB에서 데이터를 가져와서 TimescaleDB로 옮김
-            cursor = mongo_collection.find({}).limit(100)  # 일괄 처리 크기
-            if cursor.count() != 0:
-                for document in cursor:
-                    save_data_to_timescaledb(document)
-                    mongo_collection.delete_one({'_id': document['_id']})  # 성공적으로 처리된 데이터 삭제
-                sleep(5)  # 5초마다 실행
-        except Exception as e:
-            print(f"백그라운드 데이터 전송 중 오류: {e}")
 
 if __name__ == '__main__':
-    # app.run(debug=True)
-    threading.Thread(target=transfer_data_from_mongo_to_timescaledb, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
+    # 비동기 작업 실행
+    app.run(host="0.0.0.0", port=5000, debug=True)
