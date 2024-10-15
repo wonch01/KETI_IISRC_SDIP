@@ -15,4 +15,4 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ENV FLASK_APP=FlaskServer_main.py
 ENV FLASK_ENV=production
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "FlaskServer.FlaskServer_main:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "FlaskServer_main:app"]
