@@ -22,8 +22,8 @@ db = SQLAlchemy(app)
 def make_celery(app):
     celery = Celery(
         app.import_name,
-        broker=os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0"),
-        backend=os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+        broker="redis://keties.iptimes.org:55419/0", 
+        backend="redis://keties.iptimes.org:55419/1"
     )
     celery.conf.update(app.config)
     return celery
