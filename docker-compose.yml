@@ -18,8 +18,8 @@ services:
   celery_worker:
     build: .
     container_name: celery_worker
-    working_dir: /app/FlaskServer
-    command: celery -A FlaskServer_main.celery worker --loglevel=info
+    working_dir: /app
+    command: celery -A FlaskServer.FlaskServer_main.celery worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
