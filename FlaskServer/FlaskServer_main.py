@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from pymongo import MongoClient
 import psycopg2
 from celery import Celery
+from celery.utils.log import get_task_logger
 from flask_restx import Api, Resource, fields, Namespace
 from flask_restx import reqparse
 import logging
@@ -26,6 +27,8 @@ celery = Celery('FlaskServer_main',
             # broker='redis://172.24.0.4:6379/0', 
             # backend='redis://172.24.0.4:6379/1'
         )
+# Celery 로거 생성
+celery_logger = get_task_logger(__name__)
 
 
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
@@ -289,10 +292,10 @@ def save_data_to_timescaledb(sensor_data):
                 sensor_data['json']
             ))
         conn.commit()
-        current_app.logger.info("TimescaleDB에 데이터 저장 성공")
+        celery_logger.info("TimescaleDB에 데이터 저장 성공")
     except Exception as e:
         conn.rollback()
-        current_app.logger.info(f"TimescaleDB 저장 중 오류 발생: {e}")
+        celery_logger.info(f"TimescaleDB 저장 중 오류 발생: {e}")
     finally:
         conn.close()
 
