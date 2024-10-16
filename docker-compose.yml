@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   flask_app:
-    image: KETI_IISRC_SDIP_API_SERVER
+    image: keti_iisrc_sdip_api_server
     container_name: flask_app
     ports:
       - "55414:5000"
