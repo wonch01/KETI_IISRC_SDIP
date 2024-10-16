@@ -7,8 +7,8 @@ import time
 fake = Faker()
 
 # API 주소 설정
-# api_url = "http://127.0.0.1:5000/add_sensor_log"  # Flask API가 실행 중인 주소
-api_url = "http://bigsoft.iptime.org:55414/InputSensorData"  # Flask API가 실행 중인 주소
+api_url = "http://127.0.0.1:5000/sensor/InputSensorData"  # Flask API가 실행 중인 주소
+# api_url = "http://bigsoft.iptime.org:55414/sensor/InputSensorData"  # Flask API가 실행 중인 주소
 
 # 샘플 데이터 생성 함수
 def generate_sample_data():
@@ -44,44 +44,6 @@ def send_data_to_api(num_samples):
 
         print(f"{i + 1}개의 데이터를 전송했습니다.")
 
-# 실행
-if __name__ == "__main__":
-    num_samples = 5000 # 전송할 데이터 수
-    send_data_to_api(num_samples)  # 연속적으로 데이터를 전송
-    query_logs_from_api('2024-07-12 12:08:09.000', '2024-08-23 09:21:34.000', ['sensor_type'])
-
-# # 데이터 전송 함수
-# def send_data_to_api(num_samples, batch_size=100, delay=1):
-#     """
-#     API에 데이터를 배치 단위로 전송하는 함수
-#     :param num_samples: 생성할 총 데이터 수
-#     :param batch_size: 한 번에 전송할 데이터 수
-#     :param delay: 배치 전송 간의 딜레이 (초)
-#     """
-#     for i in range(0, num_samples, batch_size):
-#         batch_data = [generate_sample_data() for _ in range(batch_size)]
-        
-#         # API에 배치 전송
-#         for data in batch_data:
-#             try:
-#                 response = requests.post(api_url, json=data)
-#                 if response.status_code == 201:
-#                     print(f"성공적으로 전송됨: {response.json()}")
-#                 else:
-#                     print(f"오류 발생: {response.status_code} - {response.text}")
-#             except requests.exceptions.RequestException as e:
-#                 print(f"API 요청 오류: {e}")
-        
-#         print(f"{i + batch_size}개의 데이터를 전송했습니다.")
-#         time.sleep(delay)  # API에 부하를 주지 않도록 배치 사이에 딜레이
-
-# # 실행
-# if __name__ == "__main__":
-#     num_samples = 50000  # 전송할 데이터 수
-#     send_data_to_api(num_samples, batch_size=100, delay=2)  # 배치당 100개의 데이터, 2초 대기
-
-
-
 def query_logs_from_api(start_time, end_time, columns):
     """
     TimescaleDB에서 로그를 조회하는 API 호출 함수
@@ -97,15 +59,12 @@ def query_logs_from_api(start_time, end_time, columns):
         "start_time": start_time,
         "end_time": end_time,
     }
-
     # 여러 개의 컬럼을 추가하기 위해 `params`에 `columns`를 반복적으로 추가
     for column in columns:
         params.setdefault("columns", []).append(column)
-
     try:
         # GET 요청 보내기
         response = requests.get(url, params=params)
-
         # 응답 코드가 200일 때 JSON 반환
         if response.status_code == 200:
             print("API 호출 성공:")
@@ -113,8 +72,11 @@ def query_logs_from_api(start_time, end_time, columns):
         else:
             print(f"API 호출 실패: {response.status_code} - {response.text}")
             return None
-
     except requests.exceptions.RequestException as e:
         print(f"API 호출 중 오류 발생: {e}")
-        
-        
+
+# 실행
+if __name__ == "__main__":
+    num_samples = 1 # 전송할 데이터 수
+    send_data_to_api(num_samples)  # 연속적으로 데이터를 전송
+    # query_logs_from_api('2024-07-12 12:08:09.000', '2024-08-23 09:21:34.000', ['sensor_type'])
