@@ -22,10 +22,10 @@ db = SQLAlchemy(app)
 app.logger.setLevel(logging.DEBUG)
 
 celery = Celery('FlaskServer_main', 
-            broker='redis://bigsoft.iptime.org:55419/0', 
-            backend='redis://bigsoft.iptime.org:55419/1'
-            # broker='redis://172.24.0.4:6379/0', 
-            # backend='redis://172.24.0.4:6379/1'
+            # broker='redis://bigsoft.iptime.org:55419/0', /
+            # backend='redis://bigsoft.iptime.org:55419/1'
+            broker='redis://172.24.0.4:6379/0', 
+            backend='redis://172.24.0.4:6379/1'
         )
 # Celery 로거 생성
 celery_logger = get_task_logger(__name__)
