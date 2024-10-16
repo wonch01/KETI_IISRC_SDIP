@@ -14,7 +14,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'   #개발용
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@172.24.0.2:5432/KETI_IISRC_Timescale'              #배포용
 db = SQLAlchemy(app)
 
 
@@ -26,17 +27,20 @@ celery = Celery('FlaskServer_main',
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
 def get_ts_conn():
     return psycopg2.connect(
-        host="bigsoft.iptime.org",
+        # host="bigsoft.iptime.org",        #개발용
+        # port="55411",                     #개발용
+        host="172.24.0.2",                  #배포용
+        port="5432",                        #배포용
         database="KETI_IISRC_Timescale",
         user="keti_root",
         password="madcoder",
-        port="55411"
     )
 
 
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
     return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")
+
 
 class SensorLog(db.Model):
     __tablename__ = 'sensor_logs'
@@ -47,16 +51,11 @@ class SensorLog(db.Model):
     user_id = db.Column(db.String, nullable=False)
     location = db.Column(db.String, nullable=False)
     json = db.Column(JSONB, nullable=False)
-    
+
+
 # 테이블 생성 후 하이퍼테이블로 변환
 def create_hypertable():
-    conn = psycopg2.connect(
-        host="keties.iptime.org",
-        database="timescaledb_sensor",
-        user="keti_root",
-        password="madcoder",
-        port="55401"
-    )
+    conn = get_ts_conn()
     try:
         with conn.cursor() as cur:
             # 하이퍼테이블 생성
