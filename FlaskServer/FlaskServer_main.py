@@ -18,16 +18,16 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'   #개발용
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@172.24.0.2:5432/KETI_IISRC_Timescale'              #배포용
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'   #개발용
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@172.24.0.2:5432/KETI_IISRC_Timescale'              #배포용
 db = SQLAlchemy(app)
 app.logger.setLevel(logging.DEBUG)
 
 celery = Celery('FlaskServer_main', 
-            broker='redis://bigsoft.iptime.org:55419/0',
-            backend='redis://bigsoft.iptime.org:55419/1'
-            # broker='redis://172.24.0.4:6379/0', 
-            # backend='redis://172.24.0.4:6379/1'
+            # broker='redis://bigsoft.iptime.org:55419/0',      #개발용
+            # backend='redis://bigsoft.iptime.org:55419/1'      #개발용
+            broker='redis://172.24.0.4:6379/0',                 #배포용
+            backend='redis://172.24.0.4:6379/1'                 #배포용
         )
 # Celery 로거 생성
 celery_logger = get_task_logger(__name__)
@@ -36,10 +36,10 @@ celery_logger = get_task_logger(__name__)
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
 def get_ts_conn():
     return psycopg2.connect(
-        host="bigsoft.iptime.org",        #개발용
-        port="55411",                     #개발용
-        # host="172.24.0.2",                  #배포용
-        # port="5432",                        #배포용
+        # host="bigsoft.iptime.org",        #개발용
+        # port="55411",                     #개발용
+        host="172.24.0.2",                  #배포용
+        port="5432",                        #배포용
         database="KETI_IISRC_Timescale",
         user="keti_root",
         password="madcoder",
@@ -48,8 +48,8 @@ def get_ts_conn():
 
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
-    return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")      #개발용
-    # return MongoClient("mongodb://keti_root:madcoder@172.24.0.3:27017/")                #배포용
+    # return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")      #개발용
+    return MongoClient("mongodb://keti_root:madcoder@172.24.0.3:27017/")                #배포용
 
 
 class SensorLog(db.Model):
