@@ -6,6 +6,7 @@ import psycopg2
 from celery import Celery
 from flask_restx import Api, Resource, fields, Namespace
 from flask_restx import reqparse
+import logging
 import sys
 import os
 
@@ -17,7 +18,7 @@ app = Flask(__name__)
 # app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'   #개발용
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@172.24.0.2:5432/KETI_IISRC_Timescale'              #배포용
 db = SQLAlchemy(app)
-
+app.logger.setLevel(logging.DEBUG)
 
 celery = Celery('FlaskServer_main', 
             # broker='redis://bigsoft.iptimes.org:55412/0', 
@@ -99,6 +100,7 @@ sensor_data_model = ns_sensor.model('SensorData', {
 class InputSensorData(Resource):
     @ns_sensor.expect(sensor_data_model)
     def post(self):
+        current_app.logger.info("Input sensor data and store it in MongoDB")
         """Input sensor data and store it in MongoDB."""
         client = get_mongo_client()
         mongo_db = client["overflow_data"]
@@ -140,6 +142,7 @@ class GetLogsByColumns(Resource):
     @ns_sensor.response(500, 'Database query failed or an unexpected error occurred')
     def get(self):
         """Retrieve sensor logs between start_time and end_time with specified columns"""
+        current_app.logger.info("GetLogsByColumns 호출")
         try:
             # 시간 파라미터 (필수)
             start_time = request.args.get('start_time')
@@ -203,6 +206,7 @@ class GetLogsByType(Resource):
     @ns_sensor.response(500, 'Database query failed or an unexpected error occurred')
     def get(self):
         """Retrieve sensor logs between start_time and end_time filtered by sensor_type"""
+        current_app.logger.info("GetLogsByType 호출")
         try:
             # 시간 파라미터 및 센서 타입 (필수)
             start_time = request.args.get('start_time')
