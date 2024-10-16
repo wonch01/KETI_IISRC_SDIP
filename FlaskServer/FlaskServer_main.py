@@ -16,10 +16,11 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'
 db = SQLAlchemy(app)
 
-# Celery 인스턴스 생성
-celery = Celery(__name__, 
-                broker='redis://keties.iptimes.org:55419/0', 
-                backend='redis://keties.iptimes.org:55419/1')
+
+celery = Celery('FlaskServer_main', 
+            broker='redis://keties.iptimes.org:55419/0', 
+            backend='redis://keties.iptimes.org:55419/1'
+        )
 
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
 def get_ts_conn():
@@ -31,7 +32,7 @@ def get_ts_conn():
         port="55411"
     )
 
-# MongoDB 연결 설정
+
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
     return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")
@@ -46,9 +47,33 @@ class SensorLog(db.Model):
     location = db.Column(db.String, nullable=False)
     json = db.Column(JSONB, nullable=False)
     
+# 테이블 생성 후 하이퍼테이블로 변환
+def create_hypertable():
+    conn = psycopg2.connect(
+        host="keties.iptime.org",
+        database="timescaledb_sensor",
+        user="keti_root",
+        password="madcoder",
+        port="55401"
+    )
+    try:
+        with conn.cursor() as cur:
+            # 하이퍼테이블 생성
+            cur.execute("SELECT create_hypertable('sensor_logs', 'time', if_not_exists => TRUE);")
+            # time 컬럼에 추가 인덱스 생성
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sensor_logs_time ON sensor_logs (time DESC);")
+        conn.commit()
+        print("하이퍼테이블 및 인덱스 생성 완료")
+    except Exception as e:
+        conn.rollback()
+        print(f"하이퍼테이블 생성 중 오류 발생: {e}")
+    finally:
+        conn.close()
+
 # 서버 시작 시 테이블 자동 생성
 with app.app_context():
-    db.create_all()
+    db.create_all()  # 이 줄을 추가하여 테이블 자동 생성
+    create_hypertable()  # 하이퍼테이블로 변환
 
 # Flask-RestX 설정
 api = Api(app, version='1.0', title='Sensor Data API', description='API for handling sensor data input and processing.')
