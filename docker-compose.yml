@@ -3,9 +3,6 @@ version: '3.8'
 networks:
   iisrc-bridge:
     external: true
-    ipam:
-      config:
-        - subnet: 172.24.0.0/16  # 네트워크 서브넷을 정의합니다.
 
 services:
   flask_app:
