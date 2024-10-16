@@ -3,7 +3,7 @@ version: '3.8'
 services:
   flask_app:
     image: keti_iisrc_sdip_api_server
-    container_name: flask_app
+    container_name: KETI_IISRC_SDIP_API_SERVER
     ports:
       - "55414:5000"
     environment:
@@ -15,7 +15,7 @@ services:
   
   celery_worker:
     build: .
-    container_name: celery_worker
+    container_name: KETI_IISRC_SDIP_CELERY_WORKER
     working_dir: /app
     command: celery -A FlaskServer.FlaskServer_main.celery worker --loglevel=info
     environment:
