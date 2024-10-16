@@ -20,9 +20,12 @@ db = SQLAlchemy(app)
 
 
 celery = Celery('FlaskServer_main', 
-            broker='redis://keties.iptimes.org:55419/0', 
-            backend='redis://keties.iptimes.org:55419/1'
+            # broker='redis://bigsoft.iptimes.org:55412/0', 
+            # backend='redis://bigsoft.iptimes.org:55412/1'
+            broker='redis://172.24.0.4:6379/0', 
+            backend='redis://172.24.0.4:6379/1'
         )
+
 
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
 def get_ts_conn():
@@ -39,7 +42,8 @@ def get_ts_conn():
 
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
-    return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")
+    # return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")      #개발용
+    return MongoClient("mongodb://keti_root:madcoder@172.24.0.2:27017/")        #배포용
 
 
 class SensorLog(db.Model):
@@ -99,9 +103,7 @@ class InputSensorData(Resource):
         client = get_mongo_client()
         mongo_db = client["overflow_data"]
         mongo_collection = mongo_db["sensor_data"]
-
         data = request.json
-
         # MongoDB에 먼저 데이터 저장
         try:
             mongo_collection.insert_one(data)
@@ -263,6 +265,7 @@ def transfer_data():
         mongo_collection.delete_one({'_id': document['_id']})
     client.close()
 
+
 def save_data_to_timescaledb(sensor_data):
     conn = get_ts_conn()
     try:
@@ -288,6 +291,7 @@ def save_data_to_timescaledb(sensor_data):
         print(f"TimescaleDB 저장 중 오류 발생: {e}")
     finally:
         conn.close()
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
