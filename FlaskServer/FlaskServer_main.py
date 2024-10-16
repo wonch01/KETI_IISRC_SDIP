@@ -2,57 +2,39 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSONB
 from pymongo import MongoClient
-from time import sleep
 import psycopg2
-from faker import Faker
-from datetime import datetime, timedelta
-import random
+from celery import Celery
+from flask_restx import Api, Resource, fields, Namespace
 import sys
 import os
-import threading
-from celery import Celery
 
+# 프로젝트 루트 디렉토리를 sys.path에 추가
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@keties.iptime.org:55401/timescaledb_sensor'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'
 db = SQLAlchemy(app)
 
-# Flask와 Celery 설정
-# def make_celery(app):
-#     celery = Celery(
-#         app.import_name,
-#         broker="redis://keties.iptimes.org:55419/0", 
-#         backend="redis://keties.iptimes.org:55419/1"
-#     )
-#     celery.conf.update(app.config)
-#     return celery
-
 # Celery 인스턴스 생성
-# celery = make_celery(app)
-celery = Celery('FlaskServer_main', 
-             broker='redis://keties.iptimes.org:55419/0', 
-             backend='redis://keties.iptimes.org:55419/1'
-            )
+celery = Celery(__name__, 
+                broker='redis://keties.iptimes.org:55419/0', 
+                backend='redis://keties.iptimes.org:55419/1')
 
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
 def get_ts_conn():
     return psycopg2.connect(
-        host="keties.iptime.org",
-        database="timescaledb_sensor",
+        host="bigsoft.iptime.org",
+        database="KETI_IISRC_Timescale",
         user="keti_root",
         password="madcoder",
-        port="55401"
+        port="55411"
     )
 
 # MongoDB 연결 설정
-# mongo_client = MongoClient("mongodb://keti_root:madcoder@keties.iptime.org:55402/")
-# mongo_db = mongo_client["overflow_data"]
-# mongo_collection = mongo_db["sensor_data"]
-
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
-    return MongoClient("mongodb://keti_root:madcoder@keties.iptime.org:55402/")
+    return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")
 
 class SensorLog(db.Model):
     __tablename__ = 'sensor_logs'
@@ -62,34 +44,54 @@ class SensorLog(db.Model):
     sensor_value = db.Column(db.String, nullable=False)
     user_id = db.Column(db.String, nullable=False)
     location = db.Column(db.String, nullable=False)
-    json = db.Column(JSONB, nullable=False) 
+    json = db.Column(JSONB, nullable=False)
     
 # 서버 시작 시 테이블 자동 생성
 with app.app_context():
-    db.create_all()  # 이 줄을 추가하여 테이블 자동 생성
+    db.create_all()
 
-@app.route('/add_sensor_log', methods=['POST'])
-def add_sensor_log():
-    # await asyncio.sleep(1)  # 비동기 작업 예시
-    # 워커가 MongoDB 클라이언트를 생성
-    client = get_mongo_client()
-    mongo_db = client["overflow_data"]
-    mongo_collection = mongo_db["sensor_data"]
+# Flask-RestX 설정
+api = Api(app, version='1.0', title='Sensor Data API', description='API for handling sensor data input and processing.')
+ns_sensor = Namespace('sensor', description='Sensor data operations')
+api.add_namespace(ns_sensor)
 
-    data = request.json
-    # MongoDB에 먼저 데이터 저장
-    try:
-        mongo_collection.insert_one(data)
-         # Celery 비동기 작업을 호출
-        transfer_data.delay()  # 백그라운드 작업으로 데이터를 처리
+# 요청 데이터 모델 정의
+sensor_data_model = ns_sensor.model('SensorData', {
+    'time': fields.String(required=True, description='The timestamp of the sensor data (ISO 8601 format)'),
+    'sensor_type': fields.String(required=True, description='Type of the sensor'),
+    'sensor_name': fields.String(required=True, description='Name of the sensor'),
+    'sensor_value': fields.String(required=True, description='The value read from the sensor'),
+    'user_id': fields.String(required=True, description='User ID associated with the sensor data'),
+    'location': fields.String(required=True, description='Location where the sensor data was recorded'),
+    'json': fields.Raw(required=True, description='Additional sensor data in JSON format')
+})
 
-        return jsonify({"message": "Sensor log saved to MongoDB and processing"}), 201
-    except Exception as e:
-        print(f"MongoDB 저장 오류: {e}")
-        return jsonify({"message": "Error storing data in MongoDB"}), 500
-    finally:
-        client.close()
-    
+
+@ns_sensor.route('/InputSensorData')
+class InputSensorData(Resource):
+    @ns_sensor.expect(sensor_data_model)
+    def post(self):
+        """Input sensor data and store it in MongoDB."""
+        client = get_mongo_client()
+        mongo_db = client["overflow_data"]
+        mongo_collection = mongo_db["sensor_data"]
+
+        data = request.json
+
+        # MongoDB에 먼저 데이터 저장
+        try:
+            mongo_collection.insert_one(data)
+            # Celery 비동기 작업을 호출
+            transfer_data.delay()
+
+            return jsonify({"message": "Sensor log saved to MongoDB and processing"}), 201
+        except Exception as e:
+            print(f"MongoDB 저장 오류: {e}")
+            return jsonify({"message": "Error storing data in MongoDB"}), 500
+        finally:
+            client.close()
+
+
 # Celery 작업 정의
 @celery.task
 def transfer_data():
@@ -101,11 +103,11 @@ def transfer_data():
     cursor = mongo_collection.find({}).limit(100)
     for document in cursor:
         save_data_to_timescaledb(document)
-        mongo_collection.delete_one({'_id': document['_id']})  # 데이터 삭제
+        mongo_collection.delete_one({'_id': document['_id']})
     client.close()
 
 def save_data_to_timescaledb(sensor_data):
-    conn = get_ts_conn()  # 각 작업마다 새 TimescaleDB 커넥션 생성
+    conn = get_ts_conn()
     try:
         with conn.cursor() as cur:
             query = """
@@ -130,7 +132,5 @@ def save_data_to_timescaledb(sensor_data):
     finally:
         conn.close()
 
-
 if __name__ == '__main__':
-    # 비동기 작업 실행
     app.run(host="0.0.0.0", port=5000, debug=True)
