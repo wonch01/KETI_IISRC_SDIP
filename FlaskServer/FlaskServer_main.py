@@ -68,10 +68,10 @@ def create_hypertable():
             # time 컬럼에 추가 인덱스 생성
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sensor_logs_time ON sensor_logs (time DESC);")
         conn.commit()
-        print("하이퍼테이블 및 인덱스 생성 완료")
+        current_app.logger.info("하이퍼테이블 및 인덱스 생성 완료")
     except Exception as e:
         conn.rollback()
-        print(f"하이퍼테이블 생성 중 오류 발생: {e}")
+        current_app.logger.info(f"하이퍼테이블 생성 중 오류 발생: {e}")
     finally:
         conn.close()
 
@@ -114,7 +114,7 @@ class InputSensorData(Resource):
 
             return {"message": "Sensor log saved to MongoDB and processing"}, 201
         except Exception as e:
-            print(f"MongoDB 저장 오류: {e}")
+            current_app.logger.info(f"MongoDB 저장 오류: {e}")
             return {"message": "Error storing data in MongoDB"}, 500
         finally:
             client.close()
@@ -183,10 +183,10 @@ class GetLogsByColumns(Resource):
             return jsonify([dict(zip(columns, row)) for row in result]), 200
 
         except psycopg2.Error as e:
-            print(f"쿼리 실행 중 오류: {e}")
+            current_app.logger.info(f"쿼리 실행 중 오류: {e}")
             return {"error": "Database query failed"}, 500
         except Exception as e:
-            print(f"예외 발생: {e}")
+            current_app.logger.info(f"예외 발생: {e}")
             return {"error": "An unexpected error occurred"}, 500
         finally:
             conn.close()
@@ -246,10 +246,10 @@ class GetLogsByType(Resource):
             return jsonify([dict(zip(columns, row)) for row in result]), 200
 
         except psycopg2.Error as e:
-            print(f"쿼리 실행 중 오류: {e}")
+            current_app.logger.info(f"쿼리 실행 중 오류: {e}")
             return {"error": "Database query failed"}, 500
         except Exception as e:
-            print(f"예외 발생: {e}")
+            current_app.logger.info(f"예외 발생: {e}")
             return {"error": "An unexpected error occurred"}, 500
         finally:
             conn.close()
@@ -289,10 +289,10 @@ def save_data_to_timescaledb(sensor_data):
                 sensor_data['json']
             ))
         conn.commit()
-        print("TimescaleDB에 데이터 저장 성공")
+        current_app.logger.info("TimescaleDB에 데이터 저장 성공")
     except Exception as e:
         conn.rollback()
-        print(f"TimescaleDB 저장 중 오류 발생: {e}")
+        current_app.logger.info(f"TimescaleDB 저장 중 오류 발생: {e}")
     finally:
         conn.close()
 
