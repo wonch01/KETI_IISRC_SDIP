@@ -2,17 +2,15 @@ version: '3.8'
 
 services:
   flask_app:
-    image: timescaledb_flask_gunicorn
+    image: KETI_IISRC_SDIP_API_SERVER
     container_name: flask_app
     ports:
-      - "55403:5000"
+      - "55414:5000"
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
-    depends_on:
-      - redis
     networks:
-      - app_network
+      - iisrc-bridge
     restart: always
   
   celery_worker:
@@ -25,24 +23,9 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
       - flask_app
-      - redis
     networks:
-      - app_network
-
-  redis:
-    image: redis:latest
-    container_name: redis
-    ports:
-      - "55419:6379"
-    networks:
-      - app_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
+      - iisrc-bridge
 
 networks:
-  app_network:
-    driver: bridge
+  iisrc-bridge:
+    external: true
