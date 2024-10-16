@@ -77,6 +77,6 @@ def query_logs_from_api(start_time, end_time, columns):
 
 # 실행
 if __name__ == "__main__":
-    num_samples = 1 # 전송할 데이터 수
+    num_samples = 100 # 전송할 데이터 수
     send_data_to_api(num_samples)  # 연속적으로 데이터를 전송
     # query_logs_from_api('2024-07-12 12:08:09.000', '2024-08-23 09:21:34.000', ['sensor_type'])
