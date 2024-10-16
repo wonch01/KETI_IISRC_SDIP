@@ -18,18 +18,6 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@keties.iptime.org:55401/timescaledb_sensor'
 db = SQLAlchemy(app)
 
-# Flask와 Celery 설정
-# def make_celery(app):
-#     celery = Celery(
-#         app.import_name,
-#         broker="redis://keties.iptimes.org:55419/0", 
-#         backend="redis://keties.iptimes.org:55419/1"
-#     )
-#     celery.conf.update(app.config)
-#     return celery
-
-# Celery 인스턴스 생성
-# celery = make_celery(app)
 celery = Celery('FlaskServer_main', 
              broker='redis://keties.iptimes.org:55419/0', 
              backend='redis://keties.iptimes.org:55419/1'
@@ -45,11 +33,6 @@ def get_ts_conn():
         port="55401"
     )
 
-# MongoDB 연결 설정
-# mongo_client = MongoClient("mongodb://keti_root:madcoder@keties.iptime.org:55402/")
-# mongo_db = mongo_client["overflow_data"]
-# mongo_collection = mongo_db["sensor_data"]
-
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
     return MongoClient("mongodb://keti_root:madcoder@keties.iptime.org:55402/")
@@ -64,9 +47,33 @@ class SensorLog(db.Model):
     location = db.Column(db.String, nullable=False)
     json = db.Column(JSONB, nullable=False) 
     
+# 테이블 생성 후 하이퍼테이블로 변환
+def create_hypertable():
+    conn = psycopg2.connect(
+        host="keties.iptime.org",
+        database="timescaledb_sensor",
+        user="keti_root",
+        password="madcoder",
+        port="55401"
+    )
+    try:
+        with conn.cursor() as cur:
+            # 하이퍼테이블 생성
+            cur.execute("SELECT create_hypertable('sensor_logs', 'time', if_not_exists => TRUE);")
+            # time 컬럼에 추가 인덱스 생성
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sensor_logs_time ON sensor_logs (time DESC);")
+        conn.commit()
+        print("하이퍼테이블 및 인덱스 생성 완료")
+    except Exception as e:
+        conn.rollback()
+        print(f"하이퍼테이블 생성 중 오류 발생: {e}")
+    finally:
+        conn.close()
+
 # 서버 시작 시 테이블 자동 생성
 with app.app_context():
     db.create_all()  # 이 줄을 추가하여 테이블 자동 생성
+    create_hypertable()  # 하이퍼테이블로 변환
 
 @app.route('/add_sensor_log', methods=['POST'])
 def add_sensor_log():
