@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, current_app
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSONB
 from pymongo import MongoClient

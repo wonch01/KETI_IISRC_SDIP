@@ -8,7 +8,7 @@ fake = Faker()
 
 # API 주소 설정
 # api_url = "http://127.0.0.1:5000/add_sensor_log"  # Flask API가 실행 중인 주소
-api_url = "http://keties.iptime.org:55403/add_sensor_log"  # Flask API가 실행 중인 주소
+api_url = "http://bigsoft.iptime.org:55414/InputSensorData"  # Flask API가 실행 중인 주소
 
 # 샘플 데이터 생성 함수
 def generate_sample_data():
