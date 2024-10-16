@@ -5,6 +5,7 @@ from pymongo import MongoClient
 import psycopg2
 from celery import Celery
 from flask_restx import Api, Resource, fields, Namespace
+from flask_restx import reqparse
 import sys
 import os
 
@@ -91,7 +92,6 @@ sensor_data_model = ns_sensor.model('SensorData', {
     'json': fields.Raw(required=True, description='Additional sensor data in JSON format')
 })
 
-
 @ns_sensor.route('/InputSensorData')
 class InputSensorData(Resource):
     @ns_sensor.expect(sensor_data_model)
@@ -115,6 +115,139 @@ class InputSensorData(Resource):
             return jsonify({"message": "Error storing data in MongoDB"}), 500
         finally:
             client.close()
+
+
+# 날짜 및 sensor_name 또는 sensor_type별 데이터 조회 API
+query_model = ns_sensor.model('QueryModel', {
+    'start_date': fields.String(required=True, description='Start date in ISO 8601 format'),
+    'end_date': fields.String(required=True, description='End date in ISO 8601 format'),
+    'sensor_name': fields.String(required=False, description='Name of the sensor to filter'),
+    'sensor_type': fields.String(required=False, description='Type of the sensor to filter')
+})
+
+# 쿼리 파라미터를 정의하기 위한 파서 설정
+log_query_column_parser = reqparse.RequestParser()
+log_query_column_parser.add_argument('start_time', required=True, type=str, help='Start time in ISO 8601 format (e.g., 2024-01-01 or 2024-01-01T00:00)')
+log_query_column_parser.add_argument('end_time', required=True, type=str, help='End time in ISO 8601 format (e.g., 2024-01-02 or 2024-01-01T23:59)')
+log_query_column_parser.add_argument('columns', required=True, action='split', help='Comma-separated list of columns to retrieve (e.g., chamber_temp)')
+
+@ns_sensor.route('/GetLogsByColumns')
+class GetLogsByColumns(Resource):
+    @ns_sensor.expect(log_query_column_parser)
+    @ns_sensor.response(200, 'Success', fields.List(fields.Raw))
+    @ns_sensor.response(400, 'Missing required parameters')
+    @ns_sensor.response(500, 'Database query failed or an unexpected error occurred')
+    def get(self):
+        """Retrieve sensor logs between start_time and end_time with specified columns"""
+        try:
+            # 시간 파라미터 (필수)
+            start_time = request.args.get('start_time')
+            end_time = request.args.get('end_time')
+
+            # 조회할 칼럼들 (가변적)
+            columns = request.args.getlist('columns')
+
+            # 기본적인 유효성 검사
+            if not start_time or not end_time or not columns:
+                return {"error": "Missing required parameters"}, 400
+            
+            # ISO 8601 포맷을 파싱
+            try:
+                start_time = datetime.fromisoformat(start_time_str)
+            except ValueError:
+                return {"error": "Invalid start_time format. Use ISO 8601 (e.g., 2024-01-01 or 2024-01-01T00:00)"}, 400
+            try:
+                end_time = datetime.fromisoformat(end_time_str)
+            except ValueError:
+                return {"error": "Invalid end_time format. Use ISO 8601 (e.g., 2024-01-02 or 2024-01-01T23:59)"}, 400
+            
+            # 컬럼 리스트를 SQL 쿼리에 사용할 수 있도록 문자열로 변환
+            columns_str = ', '.join([f'"{col}"' for col in columns])          
+            
+            # 쿼리 실행
+            conn = get_ts_conn()
+            with conn.cursor() as cur:
+                query = f"""
+                    SELECT {columns_str} 
+                    FROM sensor_logs 
+                    WHERE time BETWEEN %s AND %s
+                """
+                cur.execute(query, (start_time, end_time))
+                result = cur.fetchall()
+
+            # 결과를 JSON으로 반환
+            return jsonify([dict(zip(columns, row)) for row in result]), 200
+
+        except psycopg2.Error as e:
+            print(f"쿼리 실행 중 오류: {e}")
+            return {"error": "Database query failed"}, 500
+        except Exception as e:
+            print(f"예외 발생: {e}")
+            return {"error": "An unexpected error occurred"}, 500
+        finally:
+            conn.close()
+
+
+# 쿼리 파라미터를 정의하기 위한 파서 설정 (Type 별 조회용)
+log_query_type_parser = reqparse.RequestParser()
+log_query_type_parser.add_argument('start_time', required=True, type=str, help='Start time in ISO 8601 format (e.g., 2024-01-01 or 2024-01-01T00:00)')
+log_query_type_parser.add_argument('end_time', required=True, type=str, help='End time in ISO 8601 format (e.g., 2024-01-02 or 2024-01-01T23:59)')
+log_query_type_parser.add_argument('sensor_type', required=True, type=str, help='Sensor type to filter (e.g., temperature, humidity)')
+
+@ns_sensor.route('/GetLogsByType')
+class GetLogsByType(Resource):
+    @ns_sensor.expect(log_query_type_parser)
+    @ns_sensor.response(200, 'Success', fields.List(fields.Raw))
+    @ns_sensor.response(400, 'Missing required parameters')
+    @ns_sensor.response(500, 'Database query failed or an unexpected error occurred')
+    def get(self):
+        """Retrieve sensor logs between start_time and end_time filtered by sensor_type"""
+        try:
+            # 시간 파라미터 및 센서 타입 (필수)
+            start_time = request.args.get('start_time')
+            end_time = request.args.get('end_time')
+            sensor_type = request.args.get('sensor_type')
+
+            # 기본적인 유효성 검사
+            if not start_time or not end_time or not sensor_type:
+                return {"error": "Missing required parameters"}, 400
+            
+            # ISO 8601 포맷을 파싱
+            try:
+                start_time = datetime.fromisoformat(start_time_str)
+            except ValueError:
+                return {"error": "Invalid start_time format. Use ISO 8601 (e.g., 2024-01-01 or 2024-01-01T00:00)"}, 400
+            try:
+                end_time = datetime.fromisoformat(end_time_str)
+            except ValueError:
+                return {"error": "Invalid end_time format. Use ISO 8601 (e.g., 2024-01-02 or 2024-01-01T23:59)"}, 400
+            
+            # 쿼리 실행
+            conn = get_ts_conn()
+            with conn.cursor() as cur:
+                query = """
+                    SELECT * 
+                    FROM sensor_logs 
+                    WHERE time BETWEEN %s AND %s
+                    AND sensor_type = %s
+                """
+                cur.execute(query, (start_time, end_time, sensor_type))
+                result = cur.fetchall()
+
+                # 컬럼명 가져오기 (cursor.description 사용)
+                columns = [desc[0] for desc in cur.description]
+
+            # 결과를 JSON으로 반환
+            return jsonify([dict(zip(columns, row)) for row in result]), 200
+
+        except psycopg2.Error as e:
+            print(f"쿼리 실행 중 오류: {e}")
+            return {"error": "Database query failed"}, 500
+        except Exception as e:
+            print(f"예외 발생: {e}")
+            return {"error": "An unexpected error occurred"}, 500
+        finally:
+            conn.close()
 
 
 # Celery 작업 정의
