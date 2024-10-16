@@ -3,17 +3,22 @@ from faker import Faker
 import json
 import time
 
+
 # Faker 초기화
 fake = Faker()
 
 # API 주소 설정
-# api_url = "http://127.0.0.1:5000/sensor/InputSensorData"  # Flask API가 실행 중인 주소
-api_url = "http://bigsoft.iptime.org:55414/sensor/InputSensorData"  # Flask API가 실행 중인 주소
+api_url = "http://127.0.0.1:5000/sensor/InputSensorData"  # Flask API가 실행 중인 주소
+# api_url = "http://bigsoft.iptime.org:55414/sensor/InputSensorData"  # Flask API가 실행 중인 주소
 
 # 샘플 데이터 생성 함수
 def generate_sample_data():
+    # 현재 시간을 ISO 8601 형식으로 변환
+    current_time = time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime())
+    # UTC 오프셋에 콜론 추가 (예: +0900 -> +09:00)
+    iso8601_time = current_time[:-2] + ':' + current_time[-2:]
     data = {
-        'time': fake.iso8601(),  # ISO 8601 형식의 날짜/시간
+        'time': iso8601_time,  # ISO 8601 형식의 날짜/시간
         'sensor_type': fake.random_element(elements=('temperature', 'humidity', 'pressure')),
         'sensor_name': fake.word(),
         'sensor_value': str(fake.random_number(digits=3, fix_len=True)),

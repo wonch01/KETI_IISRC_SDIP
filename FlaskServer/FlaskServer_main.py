@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, current_app
+from flask import make_response, json
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.dialects.postgresql import JSONB
 from pymongo import MongoClient
@@ -7,6 +8,7 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 from flask_restx import Api, Resource, fields, Namespace
 from flask_restx import reqparse
+from datetime import datetime
 import logging
 import sys
 import os
@@ -16,16 +18,16 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 app = Flask(__name__)
-# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'   #개발용
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@172.24.0.2:5432/KETI_IISRC_Timescale'              #배포용
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@bigsoft.iptime.org:55411/KETI_IISRC_Timescale'   #개발용
+# app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://keti_root:madcoder@172.24.0.2:5432/KETI_IISRC_Timescale'              #배포용
 db = SQLAlchemy(app)
 app.logger.setLevel(logging.DEBUG)
 
 celery = Celery('FlaskServer_main', 
-            # broker='redis://bigsoft.iptime.org:55419/0', /
-            # backend='redis://bigsoft.iptime.org:55419/1'
-            broker='redis://172.24.0.4:6379/0', 
-            backend='redis://172.24.0.4:6379/1'
+            broker='redis://bigsoft.iptime.org:55419/0',
+            backend='redis://bigsoft.iptime.org:55419/1'
+            # broker='redis://172.24.0.4:6379/0', 
+            # backend='redis://172.24.0.4:6379/1'
         )
 # Celery 로거 생성
 celery_logger = get_task_logger(__name__)
@@ -34,10 +36,10 @@ celery_logger = get_task_logger(__name__)
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
 def get_ts_conn():
     return psycopg2.connect(
-        # host="bigsoft.iptime.org",        #개발용
-        # port="55411",                     #개발용
-        host="172.24.0.2",                  #배포용
-        port="5432",                        #배포용
+        host="bigsoft.iptime.org",        #개발용
+        port="55411",                     #개발용
+        # host="172.24.0.2",                  #배포용
+        # port="5432",                        #배포용
         database="KETI_IISRC_Timescale",
         user="keti_root",
         password="madcoder",
@@ -46,8 +48,8 @@ def get_ts_conn():
 
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
-    # return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")      #개발용
-    return MongoClient("mongodb://keti_root:madcoder@172.24.0.3:27017/")                #배포용
+    return MongoClient("mongodb://keti_root:madcoder@bigsoft.iptime.org:55410/")      #개발용
+    # return MongoClient("mongodb://keti_root:madcoder@172.24.0.3:27017/")                #배포용
 
 
 class SensorLog(db.Model):
@@ -132,31 +134,31 @@ query_model = ns_sensor.model('QueryModel', {
 })
 
 # 쿼리 파라미터를 정의하기 위한 파서 설정
-log_query_column_parser = reqparse.RequestParser()
-log_query_column_parser.add_argument('start_time', required=True, type=str, help='Start time in ISO 8601 format (e.g., 2024-01-01 or 2024-01-01T00:00)')
-log_query_column_parser.add_argument('end_time', required=True, type=str, help='End time in ISO 8601 format (e.g., 2024-01-02 or 2024-01-01T23:59)')
-log_query_column_parser.add_argument('columns', required=True, action='split', help='Comma-separated list of columns to retrieve (e.g., chamber_temp)')
+log_query_sensor_name_parser = reqparse.RequestParser()
+log_query_sensor_name_parser.add_argument('start_time', required=True, type=str, help='Start time in ISO 8601 format (e.g., 2024-01-01 or 2024-01-01T00:00)')
+log_query_sensor_name_parser.add_argument('end_time', required=True, type=str, help='End time in ISO 8601 format (e.g., 2024-01-02 or 2024-01-01T23:59)')
+log_query_sensor_name_parser.add_argument('sensor_names', required=True, action='split', help='Comma-separated list of sensor names to retrieve (e.g., temperature_sensor,humidity_sensor)')
 
-@ns_sensor.route('/GetLogsByColumns')
-class GetLogsByColumns(Resource):
-    @ns_sensor.expect(log_query_column_parser)
+@ns_sensor.route('/GetLogsBySensorNames')
+class GetLogsBySensorNames(Resource):
+    @ns_sensor.expect(log_query_sensor_name_parser)
     @ns_sensor.response(200, 'Success', fields.List(fields.Raw))
     @ns_sensor.response(400, 'Missing required parameters')
     @ns_sensor.response(500, 'Database query failed or an unexpected error occurred')
     def get(self):
-        """Retrieve sensor logs between start_time and end_time with specified columns"""
-        current_app.logger.info("GetLogsByColumns 호출")
+        """Retrieve sensor logs between start_time and end_time for specified sensor names"""
+        current_app.logger.info("GetLogsBySensorNames 호출")
         try:
             # 시간 파라미터 (필수)
-            start_time = request.args.get('start_time')
-            end_time = request.args.get('end_time')
-
-            # 조회할 칼럼들 (가변적)
-            columns = request.args.getlist('columns')
-
+            start_time_str = request.args.get('start_time')
+            end_time_str = request.args.get('end_time')
+            
+            # 조회할 센서 이름들 (가변적)
+            sensor_names = request.args.getlist('sensor_names')
+            
             # 기본적인 유효성 검사
-            if not start_time or not end_time or not columns:
-                return {"error": "Missing required parameters"}, 400
+            if not start_time_str or not end_time_str or not sensor_names:
+                return {"error": "Missing required parameters"}, 400   
             
             # ISO 8601 포맷을 파싱
             try:
@@ -167,24 +169,27 @@ class GetLogsByColumns(Resource):
                 end_time = datetime.fromisoformat(end_time_str)
             except ValueError:
                 return {"error": "Invalid end_time format. Use ISO 8601 (e.g., 2024-01-02 or 2024-01-01T23:59)"}, 400
-            
-            # 컬럼 리스트를 SQL 쿼리에 사용할 수 있도록 문자열로 변환
-            columns_str = ', '.join([f'"{col}"' for col in columns])          
-            
+            # Sensor names를 SQL 쿼리에 사용할 수 있도록 튜플 형태로 변환
+            sensor_names_tuple = tuple(sensor_names)            
             # 쿼리 실행
             conn = get_ts_conn()
             with conn.cursor() as cur:
-                query = f"""
-                    SELECT {columns_str} 
+                query = """
+                    SELECT * 
                     FROM sensor_logs 
                     WHERE time BETWEEN %s AND %s
+                    AND sensor_name IN %s
                 """
-                cur.execute(query, (start_time, end_time))
+                cur.execute(query, (start_time, end_time, sensor_names_tuple))
                 result = cur.fetchall()
-
+                # 컬럼명 가져오기 (cursor.description 사용)
+                columns = [desc[0] for desc in cur.description]
             # 결과를 JSON으로 반환
-            return jsonify([dict(zip(columns, row)) for row in result]), 200
-
+            result_data = [dict(zip(columns, row)) for row in result]
+            response = make_response(json.dumps(result_data), 200)
+            response.headers["Content-Type"] = "application/json"
+            return response
+        
         except psycopg2.Error as e:
             current_app.logger.info(f"쿼리 실행 중 오류: {e}")
             return {"error": "Database query failed"}, 500
@@ -212,12 +217,12 @@ class GetLogsByType(Resource):
         current_app.logger.info("GetLogsByType 호출")
         try:
             # 시간 파라미터 및 센서 타입 (필수)
-            start_time = request.args.get('start_time')
-            end_time = request.args.get('end_time')
+            start_time_str = request.args.get('start_time')
+            end_time_str  = request.args.get('end_time')
             sensor_type = request.args.get('sensor_type')
-
+            
             # 기본적인 유효성 검사
-            if not start_time or not end_time or not sensor_type:
+            if not start_time_str or not end_time_str or not sensor_type:
                 return {"error": "Missing required parameters"}, 400
             
             # ISO 8601 포맷을 파싱
@@ -241,13 +246,14 @@ class GetLogsByType(Resource):
                 """
                 cur.execute(query, (start_time, end_time, sensor_type))
                 result = cur.fetchall()
-
                 # 컬럼명 가져오기 (cursor.description 사용)
                 columns = [desc[0] for desc in cur.description]
-
             # 결과를 JSON으로 반환
-            return jsonify([dict(zip(columns, row)) for row in result]), 200
-
+            result_data = [dict(zip(columns, row)) for row in result]
+            response = make_response(json.dumps(result_data), 200)
+            response.headers["Content-Type"] = "application/json"
+            return response
+        
         except psycopg2.Error as e:
             current_app.logger.info(f"쿼리 실행 중 오류: {e}")
             return {"error": "Database query failed"}, 500
