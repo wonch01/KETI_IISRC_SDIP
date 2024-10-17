@@ -8,6 +8,7 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 from flask_restx import Api, Resource, fields, Namespace
 from flask_restx import reqparse
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import logging
 import sys
@@ -115,7 +116,7 @@ class InputSensorData(Resource):
         try:
             mongo_collection.insert_one(data)
             # Celery 비동기 작업을 호출
-            transfer_data.delay()            
+            # transfer_data.delay()            
 
             return {"message": "Sensor log saved to MongoDB and processing"}, 201
         except Exception as e:
@@ -123,6 +124,54 @@ class InputSensorData(Resource):
             return {"message": "Error storing data in MongoDB"}, 500
         finally:
             client.close()
+
+
+# Celery 작업 정의
+@celery.task
+def transfer_data():
+    # 워커가 MongoDB 클라이언트를 생성
+    client = get_mongo_client()
+    mongo_db = client["overflow_data"]
+    mongo_collection = mongo_db["sensor_data"]
+
+    cursor = mongo_collection.find({}).limit(100)
+    for document in cursor:
+        save_data_to_timescaledb(document)
+        mongo_collection.delete_one({'_id': document['_id']})
+    client.close()
+
+
+def save_data_to_timescaledb(sensor_data):
+    conn = get_ts_conn()
+    try:
+        with conn.cursor() as cur:
+            query = """
+            INSERT INTO sensor_logs (time, sensor_type, sensor_name, sensor_value, user_id, location, json)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT ("time") DO NOTHING
+            """
+            cur.execute(query, (
+                sensor_data['time'],
+                sensor_data['sensor_type'],
+                sensor_data['sensor_name'],
+                sensor_data['sensor_value'],
+                sensor_data['user_id'],
+                sensor_data['location'],
+                sensor_data['json']
+            ))
+        conn.commit()
+        celery_logger.info("TimescaleDB에 데이터 저장 성공")
+    except Exception as e:
+        conn.rollback()
+        celery_logger.info(f"TimescaleDB 저장 중 오류 발생: {e}")
+    finally:
+        conn.close()
+
+
+# APScheduler로 주기적 작업 설정 (10초마다 실행)
+scheduler = BackgroundScheduler()
+scheduler.add_job(transfer_data, 'interval', seconds=10)
+scheduler.start()
 
 
 # 날짜 및 sensor_name 또는 sensor_type별 데이터 조회 API
@@ -264,50 +313,8 @@ class GetLogsByType(Resource):
             conn.close()
 
 
-# Celery 작업 정의
-@celery.task
-def transfer_data():
-    # 워커가 MongoDB 클라이언트를 생성
-    client = get_mongo_client()
-    mongo_db = client["overflow_data"]
-    mongo_collection = mongo_db["sensor_data"]
-
-    cursor = mongo_collection.find({}).limit(100)
-    for document in cursor:
-        save_data_to_timescaledb(document)
-        mongo_collection.delete_one({'_id': document['_id']})
-    client.close()
-
-
-def save_data_to_timescaledb(sensor_data):
-    conn = get_ts_conn()
-    try:
-        with conn.cursor() as cur:
-            query = """
-            INSERT INTO sensor_logs (time, sensor_type, sensor_name, sensor_value, user_id, location, json)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT ("time") DO NOTHING
-            """
-            cur.execute(query, (
-                sensor_data['time'],
-                sensor_data['sensor_type'],
-                sensor_data['sensor_name'],
-                sensor_data['sensor_value'],
-                sensor_data['user_id'],
-                sensor_data['location'],
-                sensor_data['json']
-            ))
-        conn.commit()
-        celery_logger.info("TimescaleDB에 데이터 저장 성공")
-    except Exception as e:
-        conn.rollback()
-        celery_logger.info(f"TimescaleDB 저장 중 오류 발생: {e}")
-    finally:
-        conn.close()
-
-
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
     # Celery 비동기 작업을 호출
     # celery.worker_main()
-    transfer_data.apply_async(countdown=10)
+    # transfer_data.apply_async(countdown=10)
