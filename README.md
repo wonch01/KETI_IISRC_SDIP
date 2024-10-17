@@ -19,4 +19,5 @@ celery==5.4.0 <br/>
 
 
 ### 서버 구성도
-![image](https://github.com/user-attachments/assets/0d369c6f-d6a3-4a61-a458-5af7b7b7c6c3)
+![image](https://github.com/user-attachments/assets/5c4a8849-d984-4d3f-9cb5-5ddb668340b5)
+
