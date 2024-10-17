@@ -24,7 +24,7 @@ def generate_sample_data():
         'sensor_value': str(fake.random_number(digits=3, fix_len=True)),
         'user_id': fake.uuid4(),
         'location': fake.city(),
-        'json': json.dumps({'extra': fake.sentence()})
+        'json': {'extra': fake.sentence()}
     }
     return data
 

@@ -157,7 +157,7 @@ def save_data_to_timescaledb(sensor_data):
                 sensor_data['sensor_value'],
                 sensor_data['user_id'],
                 sensor_data['location'],
-                sensor_data['json']
+                json.dumps(sensor_data['json'])  # JSON 문자열로 변환
             ))
         conn.commit()
         celery_logger.info("TimescaleDB에 데이터 저장 성공")
