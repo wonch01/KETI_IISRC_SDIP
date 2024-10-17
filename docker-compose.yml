@@ -9,15 +9,15 @@ services:
     image: keti_iisrc_sdip_api_server
     container_name: KETI_IISRC_SDIP_API_SERVER
     ports:
-      - "55414:5000"
+      - "${FLASK_PORT}:5000"
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     depends_on:
       - redis
     networks:
       iisrc-bridge:
-        ipv4_address: 172.24.0.6
+        ipv4_address: ${FLASK_IP}
     restart: always
   
   celery_worker:
@@ -26,21 +26,21 @@ services:
     working_dir: /app
     command: celery -A FlaskServer.FlaskServer_main.celery worker --loglevel=info
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     depends_on:
       - flask_app
       - redis
     networks:
       iisrc-bridge:
-        ipv4_address: 172.24.0.7
+        ipv4_address: ${CELERY_WORKER_IP}
         
 
   redis:
     image: taehoony/redis:1.0
     container_name: KETI_IISRC_Redis
     ports:
-      - "55419:6379"
+      - "${REDIS_PORT}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -48,4 +48,4 @@ services:
       retries: 5
     networks:
       iisrc-bridge:
-        ipv4_address: 172.24.0.4
+        ipv4_address: ${REDIS_IP}
