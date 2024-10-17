@@ -33,11 +33,11 @@ celery = Celery('FlaskServer_main',
             # backend='redis://bigsoft.iptime.org:55419/1'      #개발용
             # broker='redis://172.24.0.4:6379/0',                 #배포용
             # backend='redis://172.24.0.4:6379/1'                 #배포용
-            broker=os.getenv('CELERY_BROKER_URL'),
-            backend=os.getenv('CELERY_RESULT_BACKEND')
+            broker=os.getenv('CELERY_BROKER'),
+            backend=os.getenv('CELERY_BACKEND')
         )
 # Celery 로거 생성
-celery_logger = celery.log.get_task_logger(__name__)
+celery_logger = get_task_logger(__name__)
 
 
 # TimescaleDB 연결 설정 (커넥션 풀 사용 권장)
