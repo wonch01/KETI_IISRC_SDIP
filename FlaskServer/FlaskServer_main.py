@@ -115,7 +115,7 @@ class InputSensorData(Resource):
         try:
             mongo_collection.insert_one(data)
             # Celery 비동기 작업을 호출
-            transfer_data.delay()
+            transfer_data.delay()            
 
             return {"message": "Sensor log saved to MongoDB and processing"}, 201
         except Exception as e:
@@ -308,3 +308,6 @@ def save_data_to_timescaledb(sensor_data):
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
+    # Celery 비동기 작업을 호출
+    # celery.worker_main()
+    transfer_data.apply_async(countdown=10)
