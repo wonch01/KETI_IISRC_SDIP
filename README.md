@@ -22,7 +22,13 @@ celery==5.4.0 <br/>
 ![image](https://github.com/user-attachments/assets/7e920969-6839-43ab-9349-d9a0afa77d56)
 
 ### [2] 모니터링 웹 서비스 사용 (pgAdmin)
-![image](https://github.com/user-attachments/assets/6f0d0612-72c1-4369-b74b-143e275a6a1b)
+주소 : http://bigsoft.iptime.org:55413 <br/>
+##### 로그인 정보 
+ID: keti_root@keti.re.kr  <br/>
+PW: madcoder <br/>
 
 ### [3] API Docs 접속
-![image](https://github.com/user-attachments/assets/fa67459b-f9a9-436b-a4c3-48dd46706380)
+주소 : http://bigsoft.iptime.org:55414 <br/>
+클릭시 API Docs 페이지 이동 <br/>
+위 주소에 API 경로를 병합해서 사용 ( e.g. bigsoft.iptime.org:55414/sensor/InputSensorData )
+
