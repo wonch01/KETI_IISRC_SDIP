@@ -18,4 +18,7 @@ Redis server v=7.2.4 <br/>
 celery==5.4.0 <br/>
 
 
-![image](https://github.com/user-attachments/assets/4a13ede3-a7eb-4958-82bd-8ecec1099c0b)
+### 서버 구성도
+
+![image](https://github.com/user-attachments/assets/cc8ecdc7-75c8-482c-8236-abe5f22af77e)
+
