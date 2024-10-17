@@ -16,3 +16,6 @@ TimescaleDB version 2.16.1 <br/>
 MongoDB version v7.0.11 <br/>
 Redis server v=7.2.4 <br/>
 celery==5.4.0 <br/>
+
+
+![image](https://github.com/user-attachments/assets/4a13ede3-a7eb-4958-82bd-8ecec1099c0b)
