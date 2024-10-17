@@ -1,6 +1,8 @@
 # KETI_IISRC_SDIP
 
-### KETI_Intelligent Integrated Software Research Center(IISRC)_Sensor Data Ingest Process(SDIP)
+### (KETI)  Korea Electronics Technology Institute
+### (IISRC) Intelligent Integrated Software Research Center
+### (SDIP)  Sensor Data Ingest Process
 
 #### 개발 환경
 Window 10 <br/>
