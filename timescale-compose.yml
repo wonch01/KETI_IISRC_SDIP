@@ -1,0 +1,37 @@
+version: '3'
+
+networks:
+  iisrc-bridge:
+    external: true
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    container_name: KETI_IISRC_Timescale
+    restart: always
+    ports:
+      - "${TIMESCALE_PORT}:5432"
+    environment:
+      POSTGRES_DB: "KETI_IISRC_Timescale"
+      POSTGRES_USER: "keti_root"
+      POSTGRES_PASSWORD: "madcoder"
+    volumes:
+      - /home/keti3dp/disks/disk0/data/timescale_IISRC:/var/lib/postgresql/data
+    networks:
+      iisrc-bridge:
+        ipv4_address: ${TIMESCALE_IP}
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: KETI_IISRC_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: keti_root@keti.re.kr
+      PGADMIN_DEFAULT_PASSWORD: madcoder
+    ports:
+      - "${PGADMIN_PORT}:80"
+    depends_on:
+      - timescaledb
+    restart: always
+    networks:
+      iisrc-bridge:
+        ipv4_address: ${PGADMIN_IP}

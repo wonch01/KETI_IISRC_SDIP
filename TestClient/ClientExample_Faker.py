@@ -8,8 +8,8 @@ import time
 fake = Faker()
 
 # API 주소 설정
-# base_url = "http://127.0.0.1:5000"  # Flask API가 실행 중인 주소
-base_url = "http://bigsoft.iptime.org:55414"  # Flask API가 실행 중인 주소
+base_url = "http://127.0.0.1:5000"  # Flask API가 실행 중인 주소
+# base_url = "http://bigsoft.iptime.org:55414"  # Flask API가 실행 중인 주소
 
 # 샘플 데이터 생성 함수
 def generate_sample_data():
