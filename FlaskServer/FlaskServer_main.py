@@ -21,18 +21,18 @@ sys.path.append(project_root)
 load_dotenv()
 
 app = Flask(__name__)
-# app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('POSTGRES_URI_DEV')       #개발용
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('POSTGRES_URI_DEPLOY')    #배포용
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('POSTGRES_URI_DEV')       #개발용
+# app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('POSTGRES_URI_DEPLOY')    #배포용
 
 
 db = SQLAlchemy(app)
 app.logger.setLevel(logging.DEBUG)
 
 celery = Celery('FlaskServer_main', 
-            # broker=os.getenv('CELERY_BROKER_DEV'),        #개발용
-            # backend=os.getenv('CELERY_BACKEND_DEV')       #개발용
-            broker=os.getenv('CELERY_BROKER_DEPLOY'),       #배포용
-            backend=os.getenv('CELERY_BACKEND_DEPLOY')      #배포용
+            broker=os.getenv('CELERY_BROKER_DEV'),        #개발용
+            backend=os.getenv('CELERY_BACKEND_DEV')       #개발용
+            # broker=os.getenv('CELERY_BROKER_DEPLOY'),       #배포용
+            # backend=os.getenv('CELERY_BACKEND_DEPLOY')      #배포용
 )
 # Celery 로거 생성
 celery_logger = get_task_logger(__name__)
@@ -45,7 +45,7 @@ def get_ts_conn():
 def get_mongo_client():
     """각 워커에서 MongoClient를 생성하는 함수"""
     mongo_uri = os.getenv('MONGO_URI_DEV')      #개발용
-    mongo_uri = os.getenv('MONGO_URI_DEPLOY')   #배포용
+    # mongo_uri = os.getenv('MONGO_URI_DEPLOY')   #배포용
     return MongoClient(mongo_uri)
 
 
@@ -309,6 +309,3 @@ class GetLogsBySensorType(Resource):
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
-    # Celery 비동기 작업을 호출
-    # celery.worker_main()
-    # transfer_data.apply_async(countdown=10)
