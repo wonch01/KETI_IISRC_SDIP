@@ -23,9 +23,6 @@ celery==5.4.0 <br/>
 
 ### [2] 모니터링 웹 서비스 사용 (pgAdmin)
 주소 : http://bigsoft.iptime.org:55413 <br/>
-##### 로그인 정보 
-ID: keti_root@keti.re.kr  <br/>
-PW: madcoder <br/>
 
 ### [3] API Docs 접속
 주소 : http://bigsoft.iptime.org:55414 <br/>
