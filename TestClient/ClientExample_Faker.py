@@ -55,7 +55,7 @@ def get_logs_by_sensor_names(start_time, end_time, sensor_names):
     """
     Get logs for specific sensor names between start_time and end_time.
     """
-    url = f"{base_url}/GetLogsBySensorNames"
+    url = f"{base_url}/sensor/GetLogsBySensorNames"
     params = {
         "start_time": start_time,
         "end_time": end_time,
@@ -77,7 +77,7 @@ def get_logs_by_type(start_time, end_time, sensor_type):
     """
     Get logs for a specific sensor type between start_time and end_time.
     """
-    url = f"{base_url}/GetLogsByType"
+    url = f"{base_url}/sensor/GetLogsByType"
     params = {
         "start_time": start_time,
         "end_time": end_time,
